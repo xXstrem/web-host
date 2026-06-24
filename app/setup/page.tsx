@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSetupState } from '@/lib/use-setup-state';
-import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,7 +21,6 @@ export default function SetupPage() {
   const [confirm, setConfirm] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // If setup already completed, redirect to login
   if (!loading && completed) {
     router.replace('/');
     return null;
@@ -46,27 +44,28 @@ export default function SetupPage() {
       return;
     }
     setSubmitting(true);
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      setSubmitting(false);
-      toast.error(error.message);
+    const res = await fetch('/api/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password }),
+    });
+    const data = await res.json();
+    setSubmitting(false);
+    if (!res.ok) {
+      toast.error(data.error ?? 'Setup failed');
       return;
     }
-    // The DB trigger promotes the first user to admin and marks setup complete.
-    setSubmitting(false);
     setStep('done');
     toast.success('Admin account created');
-    void data;
   }
 
   function finish() {
-    router.replace('/');
+    router.replace('/dashboard');
   }
 
   return (
     <div className="min-h-screen bg-neutral-50 flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
-        {/* Brand */}
         <div className="flex items-center justify-center gap-2 mb-8">
           <div className="h-10 w-10 rounded-xl bg-black flex items-center justify-center">
             <Cloud className="h-5 w-5 text-white" />
@@ -75,7 +74,6 @@ export default function SetupPage() {
         </div>
 
         <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm overflow-hidden">
-          {/* Progress bar */}
           <div className="h-1 w-full bg-neutral-100">
             <div
               className="h-full bg-black transition-all duration-500"
@@ -100,9 +98,7 @@ export default function SetupPage() {
           </div>
         </div>
 
-        <p className="text-center text-xs text-neutral-400 mt-6">
-          TON Cloud Manager · Initial Setup
-        </p>
+        <p className="text-center text-xs text-neutral-400 mt-6">TON Cloud Manager · Initial Setup</p>
       </div>
     </div>
   );
@@ -110,7 +106,7 @@ export default function SetupPage() {
 
 function WelcomeStep({ onNext }: { onNext: () => void }) {
   const features = [
-    { icon: ShieldCheck, title: 'Secure by default', desc: 'Row-level security, hashed passwords, isolated storage.' },
+    { icon: ShieldCheck, title: 'Secure by default', desc: 'Hashed passwords, JWT sessions, isolated storage.' },
     { icon: Cloud, title: 'Cloud file management', desc: 'Upload, preview, edit, and organize your files.' },
     { icon: Sparkles, title: 'Built-in code editor', desc: 'Monaco-powered editor with syntax highlighting.' },
   ];
@@ -125,7 +121,6 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
           Let's set up your file manager. This quick wizard will create your admin account so you can start managing files right away.
         </p>
       </div>
-
       <div className="space-y-3">
         {features.map((f) => {
           const Icon = f.icon;
@@ -142,7 +137,6 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
           );
         })}
       </div>
-
       <Button onClick={onNext} className="w-full" size="lg">
         Get started <ArrowRight className="h-4 w-4 ml-2" />
       </Button>
@@ -166,11 +160,8 @@ function AdminStep(props: {
           <ShieldCheck className="h-6 w-6 text-white" />
         </div>
         <h1 className="text-2xl font-semibold tracking-tight pt-1">Create your admin account</h1>
-        <p className="text-sm text-muted-foreground">
-          This account will have full administrative access to your TON Cloud instance.
-        </p>
+        <p className="text-sm text-muted-foreground">This account will have full administrative access to your TON Cloud instance.</p>
       </div>
-
       <div className="space-y-3">
         <div className="space-y-2">
           <Label htmlFor="name">Display name</Label>
@@ -202,9 +193,8 @@ function AdminStep(props: {
             </div>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground">Use at least 8 characters. This password is securely hashed by Supabase Auth.</p>
+        <p className="text-xs text-muted-foreground">Use at least 8 characters. This password is securely hashed with bcrypt.</p>
       </div>
-
       <div className="flex gap-3">
         <Button type="button" variant="outline" onClick={props.onBack} className="flex-1">Back</Button>
         <Button type="submit" disabled={props.submitting} className="flex-1">
@@ -224,12 +214,10 @@ function DoneStep({ onFinish }: { onFinish: () => void }) {
       </div>
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Setup complete</h1>
-        <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-          Your TON Cloud Manager is ready. You'll be redirected to sign in with your new admin account.
-        </p>
+        <p className="text-sm text-muted-foreground max-w-sm mx-auto">Your TON Cloud Manager is ready. You are now signed in as admin.</p>
       </div>
       <Button onClick={onFinish} className="w-full" size="lg">
-        Go to sign in <ArrowRight className="h-4 w-4 ml-2" />
+        Go to dashboard <ArrowRight className="h-4 w-4 ml-2" />
       </Button>
     </div>
   );

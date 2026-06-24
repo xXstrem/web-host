@@ -1,12 +1,11 @@
-import { FolderRow, FileRow } from './files';
+import { FolderRow, FileRow } from './use-files';
 
 export type { FolderRow, FileRow };
 
 export type ActivityLogRow = {
-  id: string;
-  user_id: string;
+  id: number;
+  user_id: number;
   action: string;
   target: string | null;
-  meta: Record<string, unknown> | null;
   created_at: string;
 };

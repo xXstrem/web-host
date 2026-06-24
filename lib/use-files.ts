@@ -1,181 +1,135 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useAuth } from '@/lib/auth-context';
-import { supabase, STORAGE_BUCKET } from '@/lib/supabase';
-import { FileRow, FolderRow, Item } from '@/lib/files';
 
-async function logActivity(userId: string, action: string, target?: string) {
-  await supabase.from('activity_logs').insert({ user_id: userId, action, target: target ?? null });
-}
+export type FolderRow = {
+  id: number;
+  name: string;
+  parent_id: number | null;
+  owner_id: number;
+  created_at: string;
+  updated_at: string;
+};
 
-export function useFiles(parentId: string | null) {
-  const { user } = useAuth();
+export type FileRow = {
+  id: number;
+  name: string;
+  folder_id: number | null;
+  storage_path: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Item =
+  | ({ kind: 'folder' } & FolderRow)
+  | ({ kind: 'file' } & FileRow);
+
+export function useFiles(parentId: number | null) {
   const [folders, setFolders] = useState<FolderRow[]>([]);
   const [files, setFiles] = useState<FileRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    if (!user) return;
     setLoading(true);
-    const [f, fl] = await Promise.all([
-      supabase.from('folders').select('*').eq('owner_id', user.id).eq('parent_id', parentId),
-      supabase.from('files').select('*').eq('owner_id', user.id).eq('folder_id', parentId),
-    ]);
-    setFolders((f.data as FolderRow[]) ?? []);
-    setFiles((fl.data as FileRow[]) ?? []);
+    const res = await fetch(`/api/files?folderId=${parentId ?? 'null'}`);
+    const data = await res.json();
+    setFolders(data.folders ?? []);
+    setFiles(data.files ?? []);
     setLoading(false);
-  }, [user, parentId]);
+  }, [parentId]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
+  async function apiPost(body: Record<string, unknown>) {
+    const res = await fetch('/api/files', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return res.json();
+  }
+
   async function createFolder(name: string) {
-    if (!user) return { error: null };
-    const { error } = await supabase
-      .from('folders')
-      .insert({ owner_id: user.id, parent_id: parentId, name });
-    if (!error) {
-      await logActivity(user.id, 'Created folder', name);
-      refresh();
-    }
-    return { error: error?.message ?? null };
+    const data = await apiPost({ action: 'mkdir', name, parentId });
+    if (data.error) return { error: data.error };
+    refresh();
+    return { error: null };
   }
 
   async function createFile(name: string, content: string) {
-    if (!user) return { error: null };
-    const path = `${user.id}/${Date.now()}-${name}`;
-    const blob = new Blob([content], { type: 'text/plain' });
-    const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, blob, { upsert: true });
-    if (upErr) return { error: upErr.message };
-    const { error } = await supabase.from('files').insert({
-      owner_id: user.id,
-      folder_id: parentId,
-      name,
-      storage_path: path,
-      mime_type: 'text/plain',
-      size_bytes: blob.size,
-    });
-    if (!error) {
-      await logActivity(user.id, 'Created file', name);
-      refresh();
-    }
-    return { error: error?.message ?? null };
+    const data = await apiPost({ action: 'createFile', name, content, parentId });
+    if (data.error) return { error: data.error };
+    refresh();
+    return { error: null };
   }
 
   async function uploadFiles(fileList: File[]) {
-    if (!user) return [];
-    const results: { name: string; error: string | null }[] = [];
-    for (const file of fileList) {
-      const path = `${user.id}/${Date.now()}-${file.name}`;
-      const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, { upsert: false });
-      if (upErr) {
-        results.push({ name: file.name, error: upErr.message });
-        continue;
-      }
-      const { error } = await supabase.from('files').insert({
-        owner_id: user.id,
-        folder_id: parentId,
-        name: file.name,
-        storage_path: path,
-        mime_type: file.type || 'application/octet-stream',
-        size_bytes: file.size,
-      });
-      if (error) {
-        results.push({ name: file.name, error: error.message });
-      } else {
-        results.push({ name: file.name, error: null });
-        await logActivity(user.id, 'Uploaded', file.name);
-      }
-    }
+    const formData = new FormData();
+    formData.append('folderId', String(parentId ?? 'null'));
+    for (const f of fileList) formData.append('files', f);
+    const res = await fetch('/api/files/upload', { method: 'POST', body: formData });
+    const data = await res.json();
     refresh();
-    return results;
+    return (data.results ?? []) as { name: string; error: string | null }[];
   }
 
-  async function renameFolder(id: string, name: string) {
-    if (!user) return { error: null };
-    const { error } = await supabase.from('folders').update({ name }).eq('id', id);
-    if (!error) {
-      await logActivity(user.id, 'Renamed folder', name);
-      refresh();
-    }
-    return { error: error?.message ?? null };
+  async function renameFolder(id: number, name: string) {
+    await apiPost({ action: 'rename', id, name, kind: 'folder' });
+    refresh();
+    return { error: null };
   }
 
-  async function renameFile(id: string, name: string) {
-    if (!user) return { error: null };
-    const { error } = await supabase.from('files').update({ name }).eq('id', id);
-    if (!error) {
-      await logActivity(user.id, 'Renamed file', name);
-      refresh();
-    }
-    return { error: error?.message ?? null };
+  async function renameFile(id: number, name: string) {
+    await apiPost({ action: 'rename', id, name, kind: 'file' });
+    refresh();
+    return { error: null };
   }
 
   async function deleteFolder(row: FolderRow) {
-    if (!user) return;
-    // delete child files (storage + rows) recursively, then folder
-    const { data: childFolders } = await supabase.from('folders').select('*').eq('parent_id', row.id);
-    for (const cf of childFolders ?? []) await deleteFolder(cf as FolderRow);
-    const { data: childFiles } = await supabase.from('files').select('*').eq('folder_id', row.id);
-    for (const cf of childFiles ?? []) await deleteFileRow(cf as FileRow);
-    await supabase.from('folders').delete().eq('id', row.id);
-    await logActivity(user.id, 'Deleted folder', row.name);
+    await apiPost({ action: 'deleteFolder', id: row.id });
     refresh();
   }
 
-  async function deleteFileRow(row: FileRow) {
-    await supabase.storage.from(STORAGE_BUCKET).remove([row.storage_path]);
-    await supabase.from('files').delete().eq('id', row.id);
-    if (user) await logActivity(user.id, 'Deleted file', row.name);
-  }
-
-  async function deleteFile(id: string) {
-    const row = files.find((f) => f.id === id);
-    if (row) await deleteFileRow(row);
+  async function deleteFile(id: number) {
+    await apiPost({ action: 'deleteFile', id });
     refresh();
   }
 
-  async function moveFile(id: string, targetFolderId: string | null) {
-    if (!user) return { error: null };
-    const { error } = await supabase.from('files').update({ folder_id: targetFolderId }).eq('id', id);
-    if (!error) {
-      await logActivity(user.id, 'Moved file');
-      refresh();
-    }
-    return { error: error?.message ?? null };
-  }
-
-  async function getPublicUrl(row: FileRow): Promise<string> {
-    const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(row.storage_path);
-    return data.publicUrl;
+  async function moveFile(id: number, targetFolderId: number | null) {
+    await apiPost({ action: 'move', id, targetFolderId });
+    refresh();
+    return { error: null };
   }
 
   async function downloadFile(row: FileRow) {
-    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(row.storage_path);
-    if (error || !data) return;
-    const url = URL.createObjectURL(data);
     const a = document.createElement('a');
-    a.href = url;
+    a.href = `/api/files/download?id=${row.id}`;
     a.download = row.name;
     a.click();
-    URL.revokeObjectURL(url);
-    if (user) await logActivity(user.id, 'Downloaded', row.name);
   }
 
   async function getFileContent(row: FileRow): Promise<string> {
-    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(row.storage_path);
-    if (error || !data) return '';
-    return await data.text();
+    const res = await fetch(`/api/files/content?id=${row.id}`);
+    const data = await res.json();
+    return data.content ?? '';
   }
 
   async function saveFileContent(row: FileRow, content: string) {
-    const blob = new Blob([content], { type: 'text/plain' });
-    await supabase.storage.from(STORAGE_BUCKET).upload(row.storage_path, blob, { upsert: true });
-    await supabase.from('files').update({ size_bytes: blob.size }).eq('id', row.id);
-    if (user) await logActivity(user.id, 'Edited file', row.name);
+    await fetch('/api/files/content', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: row.id, content }),
+    });
     refresh();
+  }
+
+  async function getAllFolders(): Promise<FolderRow[]> {
+    const data = await apiPost({ action: 'allFolders' });
+    return data.folders ?? [];
   }
 
   return {
@@ -191,9 +145,9 @@ export function useFiles(parentId: string | null) {
     deleteFolder,
     deleteFile,
     moveFile,
-    getPublicUrl,
     downloadFile,
     getFileContent,
     saveFileContent,
+    getAllFolders,
   };
 }

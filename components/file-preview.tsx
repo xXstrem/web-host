@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { FileRow, fileKind, formatBytes, relativeTime } from '@/lib/files';
-import { supabase, STORAGE_BUCKET } from '@/lib/supabase';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Download, X, FileText } from 'lucide-react';
@@ -13,12 +12,12 @@ export function FilePreview({ file, onClose, onDownload }: { file: FileRow; onCl
   const kind = fileKind(file.mime_type, file.name);
 
   useEffect(() => {
-    const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(file.storage_path);
-    setUrl(data.publicUrl);
     if (kind === 'code') {
-      supabase.storage.from(STORAGE_BUCKET).download(file.storage_path).then(({ data }) => {
-        if (data) data.text().then(setText);
-      });
+      fetch(`/api/files/content?id=${file.id}`)
+        .then((r) => r.json())
+        .then((d) => setText(d.content ?? ''));
+    } else if (kind === 'image' || kind === 'video' || kind === 'audio' || kind === 'pdf') {
+      setUrl(`/api/files/download?id=${file.id}`);
     }
   }, [file, kind]);
 
@@ -45,9 +44,7 @@ export function FilePreview({ file, onClose, onDownload }: { file: FileRow; onCl
             // eslint-disable-next-line @next/next/no-img-element
             <img src={url} alt={file.name} className="max-w-full max-h-[65vh] object-contain rounded" />
           )}
-          {kind === 'video' && (
-            <video src={url} controls className="max-w-full max-h-[65vh] rounded" />
-          )}
+          {kind === 'video' && <video src={url} controls className="max-w-full max-h-[65vh] rounded" />}
           {kind === 'audio' && (
             <div className="w-full max-w-md text-center">
               <div className="h-32 w-32 mx-auto rounded-full bg-neutral-200 flex items-center justify-center mb-4">
@@ -56,9 +53,7 @@ export function FilePreview({ file, onClose, onDownload }: { file: FileRow; onCl
               <audio src={url} controls className="w-full" />
             </div>
           )}
-          {kind === 'pdf' && (
-            <iframe src={url} className="w-full h-[65vh] rounded border-0" title={file.name} />
-          )}
+          {kind === 'pdf' && <iframe src={url} className="w-full h-[65vh] rounded border-0" title={file.name} />}
           {kind === 'code' && (
             <pre className="w-full text-xs font-mono whitespace-pre-wrap p-4 bg-white rounded border max-h-[65vh] overflow-auto">
               {text ?? 'Loading…'}

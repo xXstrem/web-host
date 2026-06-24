@@ -1,16 +1,16 @@
 export type FolderRow = {
-  id: string;
+  id: number;
   name: string;
-  parent_id: string | null;
-  owner_id: string;
+  parent_id: number | null;
+  owner_id: number;
   created_at: string;
   updated_at: string;
 };
 
 export type FileRow = {
-  id: string;
+  id: number;
   name: string;
-  folder_id: string | null;
+  folder_id: number | null;
   storage_path: string;
   mime_type: string;
   size_bytes: number;
@@ -31,16 +31,13 @@ export function formatBytes(bytes: number): string {
 }
 
 export function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+  const d = new Date(iso + (iso.endsWith('Z') ? '' : 'Z'));
+  const diff = Date.now() - d.getTime();
   const sec = Math.floor(diff / 1000);
   if (sec < 60) return 'just now';
   const min = Math.floor(sec / 60);
@@ -58,8 +55,7 @@ export function fileKind(mime: string, name: string): string {
   if (mime.startsWith('audio/')) return 'audio';
   if (mime.startsWith('video/')) return 'video';
   if (mime === 'application/pdf' || ext === 'pdf') return 'pdf';
-  if (['html', 'css', 'js', 'php', 'py', 'json', 'txt', 'md', 'ts', 'tsx'].includes(ext))
-    return 'code';
+  if (['html', 'css', 'js', 'php', 'py', 'json', 'txt', 'md', 'ts', 'tsx'].includes(ext)) return 'code';
   if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) return 'archive';
   return 'file';
 }

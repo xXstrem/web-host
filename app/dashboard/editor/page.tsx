@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import Editor from '@monaco-editor/react';
-import { useFiles } from '@/lib/use-files';
-import { FileRow, fileKind, extOf } from '@/lib/files';
+import { useFiles, FileRow } from '@/lib/use-files';
+import { fileKind, extOf } from '@/lib/files';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
@@ -16,8 +16,8 @@ const LANG_MAP: Record<string, string> = {
 };
 
 export default function EditorPage() {
-  const { files, getFileContent, saveFileContent, createFile } = useFiles(null);
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const { files, getFileContent, saveFileContent } = useFiles(null);
+  const [activeId, setActiveId] = useState<number | null>(null);
   const [content, setContent] = useState('');
   const [original, setOriginal] = useState('');
   const [loading, setLoading] = useState(false);
@@ -55,7 +55,6 @@ export default function EditorPage() {
     toast.success('Saved');
   }, [active, content, dirty, saveFileContent]);
 
-  // Ctrl/Cmd+S
   useEffect(() => {
     function handler(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
@@ -75,12 +74,7 @@ export default function EditorPage() {
           <p className="text-sm text-muted-foreground mt-1">Edit text files with syntax highlighting. Press Ctrl/Cmd+S to save.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-            title="Toggle theme"
-          >
+          <Button variant="outline" size="icon" onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')} title="Toggle theme">
             {theme === 'light' ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           </Button>
           <Button onClick={save} disabled={!active || !dirty || saving}>
@@ -90,7 +84,6 @@ export default function EditorPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4 flex-1 min-h-0">
-        {/* File list */}
         <Card className="border-neutral-200 flex flex-col min-h-0 overflow-hidden">
           <div className="px-4 py-3 border-b border-neutral-100">
             <p className="text-sm font-medium flex items-center gap-2"><FileCode className="h-4 w-4" /> Editable files</p>
@@ -100,14 +93,8 @@ export default function EditorPage() {
               <p className="text-xs text-muted-foreground p-4 text-center">No text files yet. Create one in the Files tab.</p>
             ) : (
               editableFiles.map((f) => (
-                <button
-                  key={f.id}
-                  onClick={() => setActiveId(f.id)}
-                  className={cn(
-                    'w-full text-left px-3 py-2 rounded-md text-sm flex items-center gap-2 transition-colors',
-                    activeId === f.id ? 'bg-black text-white' : 'hover:bg-neutral-100'
-                  )}
-                >
+                <button key={f.id} onClick={() => setActiveId(f.id)}
+                  className={cn('w-full text-left px-3 py-2 rounded-md text-sm flex items-center gap-2 transition-colors', activeId === f.id ? 'bg-black text-white' : 'hover:bg-neutral-100')}>
                   <FileText className="h-4 w-4 shrink-0" />
                   <span className="truncate">{f.name}</span>
                 </button>
@@ -116,7 +103,6 @@ export default function EditorPage() {
           </div>
         </Card>
 
-        {/* Editor */}
         <Card className="border-neutral-200 overflow-hidden min-h-0">
           {active ? (
             <div className="h-full flex flex-col">

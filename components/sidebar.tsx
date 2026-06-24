@@ -15,7 +15,7 @@ const nav = [
 
 export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
-  const { profile, signOut } = useAuth();
+  const { user, signOut } = useAuth();
 
   return (
     <>
@@ -62,8 +62,8 @@ export function Sidebar({ open, onClose }: { open: boolean; onClose: () => void 
 
         <div className="p-3 border-t border-white/10">
           <div className="px-3 py-2 mb-2">
-            <p className="text-sm font-medium truncate">{profile?.email}</p>
-            <p className="text-xs text-white/50 capitalize">{profile?.role}</p>
+            <p className="text-sm font-medium truncate">{user?.name || user?.email}</p>
+            <p className="text-xs text-white/50 capitalize">{user?.role}</p>
           </div>
           <Button
             variant="ghost"
