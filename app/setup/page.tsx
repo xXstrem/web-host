@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useSetupState } from '@/lib/use-setup-state';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +11,6 @@ import { toast } from 'sonner';
 type Step = 'welcome' | 'admin' | 'done';
 
 export default function SetupPage() {
-  const router = useRouter();
   const { completed, loading } = useSetupState();
   const [step, setStep] = useState<Step>('welcome');
   const [name, setName] = useState('');
@@ -22,7 +20,7 @@ export default function SetupPage() {
   const [submitting, setSubmitting] = useState(false);
 
   if (!loading && completed) {
-    router.replace('/');
+    window.location.href = '/dashboard';
     return null;
   }
   if (loading) {
@@ -60,7 +58,7 @@ export default function SetupPage() {
   }
 
   function finish() {
-    router.replace('/dashboard');
+    window.location.href = '/dashboard';
   }
 
   return (

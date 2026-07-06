@@ -23,8 +23,8 @@ export default function LoginPage() {
   }, [setupLoading, completed, router]);
 
   useEffect(() => {
-    if (user) router.replace('/dashboard');
-  }, [user, router]);
+    if (user) window.location.href = '/dashboard';
+  }, [user]);
 
   if (setupLoading || completed === false) {
     return (
@@ -43,7 +43,7 @@ export default function LoginPage() {
       toast.error(error);
       return;
     }
-    router.push('/dashboard');
+    window.location.href = '/dashboard';
   }
 
   return (
