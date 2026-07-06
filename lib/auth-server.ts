@@ -42,6 +42,24 @@ export function getSession(): SessionUser | null {
   return verifyToken(token);
 }
 
+export function sessionCookieValue(user: SessionUser): string {
+  const token = createToken(user);
+  const parts = [
+    `${COOKIE_NAME}=${token}`,
+    `Path=/`,
+    `HttpOnly`,
+    `SameSite=Lax`,
+    `Max-Age=${SESSION_MAX_AGE}`,
+  ];
+  if (process.env.NODE_ENV === 'production') parts.push('Secure');
+  return parts.join('; ');
+}
+
+export function clearCookieValue(): string {
+  return `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+}
+
+// Legacy helpers for server components (not for route handlers that return NextResponse)
 export function setSessionCookie(user: SessionUser) {
   const token = createToken(user);
   cookies().set(COOKIE_NAME, token, {

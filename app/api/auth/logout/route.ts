@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
-import { clearSessionCookie, getSession, logActivity } from '@/lib/auth-server';
+import { getSession, clearCookieValue, logActivity } from '@/lib/auth-server';
 
 export const runtime = 'nodejs';
 
 export async function POST() {
   const user = getSession();
   if (user) logActivity(user.id, 'Signed out');
-  clearSessionCookie();
-  return NextResponse.json({ ok: true });
+  const res = NextResponse.json({ ok: true });
+  res.headers.set('Set-Cookie', clearCookieValue());
+  return res;
 }

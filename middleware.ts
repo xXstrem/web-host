@@ -1,17 +1,19 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import jwt from 'jsonwebtoken';
+import { jwtVerify } from 'jose';
 
 const COOKIE_NAME = 'toncloud_session';
 const JWT_SECRET = process.env.JWT_SECRET || 'ton-cloud-dev-secret-change-in-production';
+const secret = new TextEncoder().encode(JWT_SECRET);
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const token = req.cookies.get(COOKIE_NAME)?.value;
   let user: any = null;
   if (token) {
     try {
-      user = jwt.verify(token, JWT_SECRET);
+      const { payload } = await jwtVerify(token, secret);
+      user = payload;
     } catch {
       user = null;
     }

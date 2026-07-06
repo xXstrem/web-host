@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import {
   verifyPassword,
-  setSessionCookie,
   getUserByEmail,
+  sessionCookieValue,
   logActivity,
 } from '@/lib/auth-server';
 
@@ -22,17 +22,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
   }
 
-  setSessionCookie({
+  const sessionUser = {
     id: user.id,
     email: user.email,
     name: user.name,
     role: user.role as 'admin' | 'user',
-  });
+  };
 
   logActivity(user.id, 'Signed in');
 
-  return NextResponse.json({
+  const res = NextResponse.json({
     ok: true,
-    user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    user: sessionUser,
   });
+  res.headers.set('Set-Cookie', sessionCookieValue(sessionUser));
+  return res;
 }

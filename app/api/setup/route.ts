@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db, STORAGE_DIR } from '@/lib/db';
 import {
   hashPassword,
-  setSessionCookie,
+  sessionCookieValue,
   isSetupComplete,
   completeSetup,
   userCount,
@@ -51,12 +51,14 @@ export async function POST(req: Request) {
 
   logActivity(userId, 'Setup completed', email);
 
-  setSessionCookie({
+  const sessionUser = {
     id: userId,
     email,
     name: name ?? null,
     role: role as 'admin' | 'user',
-  });
+  };
 
-  return NextResponse.json({ ok: true, role });
+  const res = NextResponse.json({ ok: true, user: sessionUser });
+  res.headers.set('Set-Cookie', sessionCookieValue(sessionUser));
+  return res;
 }
