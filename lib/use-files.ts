@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 export type FolderRow = {
   id: number;
@@ -26,111 +26,131 @@ export type Item =
   | ({ kind: 'folder' } & FolderRow)
   | ({ kind: 'file' } & FileRow);
 
+async function safeFetch(url: string, init?: RequestInit) {
+  try {
+    const res = await fetch(url, init);
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return { error: data.error ?? `Request failed (${res.status})`, data: null };
+    }
+    const data = await res.json();
+    return { error: null, data };
+  } catch (e: any) {
+    return { error: e?.message ?? 'Network error', data: null };
+  }
+}
+
 export function useFiles(parentId: number | null) {
   const [folders, setFolders] = useState<FolderRow[]>([]);
   const [files, setFiles] = useState<FileRow[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Keep parentId in a ref so refresh() identity stays stable
+  const parentIdRef = useRef(parentId);
+  parentIdRef.current = parentId;
+
   const refresh = useCallback(async () => {
     setLoading(true);
-    const res = await fetch(`/api/files?folderId=${parentId ?? 'null'}`);
-    const data = await res.json();
-    setFolders(data.folders ?? []);
-    setFiles(data.files ?? []);
+    const pid = parentIdRef.current;
+    const { error, data } = await safeFetch(`/api/files?folderId=${pid ?? 'null'}`);
+    if (error) {
+      setLoading(false);
+      return;
+    }
+    setFolders(data?.folders ?? []);
+    setFiles(data?.files ?? []);
     setLoading(false);
-  }, [parentId]);
+  }, []); // stable identity — never recreated
 
   useEffect(() => {
     refresh();
-  }, [refresh]);
+  }, [refresh, parentId]); // refetch when folder changes
 
-  async function apiPost(body: Record<string, unknown>) {
-    const res = await fetch('/api/files', {
+  const apiPost = useCallback(async (body: Record<string, unknown>) => {
+    return safeFetch('/api/files', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    return res.json();
-  }
+  }, []); // stable identity
 
-  async function createFolder(name: string) {
-    const data = await apiPost({ action: 'mkdir', name, parentId });
-    if (data.error) return { error: data.error };
-    refresh();
-    return { error: null };
-  }
+  const createFolder = useCallback(async (name: string) => {
+    const { error } = await apiPost({ action: 'mkdir', name, parentId: parentIdRef.current });
+    if (error) return { error };
+    await refresh();
+    return { error: null as string | null };
+  }, [apiPost, refresh]);
 
-  async function createFile(name: string, content: string) {
-    const data = await apiPost({ action: 'createFile', name, content, parentId });
-    if (data.error) return { error: data.error };
-    refresh();
-    return { error: null };
-  }
+  const createFile = useCallback(async (name: string, content: string) => {
+    const { error } = await apiPost({ action: 'createFile', name, content, parentId: parentIdRef.current });
+    if (error) return { error };
+    await refresh();
+    return { error: null as string | null };
+  }, [apiPost, refresh]);
 
-  async function uploadFiles(fileList: File[]) {
+  const uploadFiles = useCallback(async (fileList: File[]) => {
     const formData = new FormData();
-    formData.append('folderId', String(parentId ?? 'null'));
+    formData.append('folderId', String(parentIdRef.current ?? 'null'));
     for (const f of fileList) formData.append('files', f);
-    const res = await fetch('/api/files/upload', { method: 'POST', body: formData });
-    const data = await res.json();
-    refresh();
-    return (data.results ?? []) as { name: string; error: string | null }[];
-  }
+    const { error, data } = await safeFetch('/api/files/upload', { method: 'POST', body: formData });
+    await refresh();
+    if (error) return [{ name: 'upload', error }];
+    return (data?.results ?? []) as { name: string; error: string | null }[];
+  }, [refresh]);
 
-  async function renameFolder(id: number, name: string) {
+  const renameFolder = useCallback(async (id: number, name: string) => {
     await apiPost({ action: 'rename', id, name, kind: 'folder' });
-    refresh();
-    return { error: null };
-  }
+    await refresh();
+    return { error: null as string | null };
+  }, [apiPost, refresh]);
 
-  async function renameFile(id: number, name: string) {
+  const renameFile = useCallback(async (id: number, name: string) => {
     await apiPost({ action: 'rename', id, name, kind: 'file' });
-    refresh();
-    return { error: null };
-  }
+    await refresh();
+    return { error: null as string | null };
+  }, [apiPost, refresh]);
 
-  async function deleteFolder(row: FolderRow) {
+  const deleteFolder = useCallback(async (row: FolderRow) => {
     await apiPost({ action: 'deleteFolder', id: row.id });
-    refresh();
-  }
+    await refresh();
+  }, [apiPost, refresh]);
 
-  async function deleteFile(id: number) {
+  const deleteFile = useCallback(async (id: number) => {
     await apiPost({ action: 'deleteFile', id });
-    refresh();
-  }
+    await refresh();
+  }, [apiPost, refresh]);
 
-  async function moveFile(id: number, targetFolderId: number | null) {
+  const moveFile = useCallback(async (id: number, targetFolderId: number | null) => {
     await apiPost({ action: 'move', id, targetFolderId });
-    refresh();
-    return { error: null };
-  }
+    await refresh();
+    return { error: null as string | null };
+  }, [apiPost, refresh]);
 
-  async function downloadFile(row: FileRow) {
+  const downloadFile = useCallback(async (row: FileRow) => {
     const a = document.createElement('a');
     a.href = `/api/files/download?id=${row.id}`;
     a.download = row.name;
     a.click();
-  }
+  }, []);
 
-  async function getFileContent(row: FileRow): Promise<string> {
-    const res = await fetch(`/api/files/content?id=${row.id}`);
-    const data = await res.json();
-    return data.content ?? '';
-  }
+  const getFileContent = useCallback(async (row: FileRow): Promise<string> => {
+    const { data } = await safeFetch(`/api/files/content?id=${row.id}`);
+    return data?.content ?? '';
+  }, []);
 
-  async function saveFileContent(row: FileRow, content: string) {
-    await fetch('/api/files/content', {
+  const saveFileContent = useCallback(async (row: FileRow, content: string) => {
+    await safeFetch('/api/files/content', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: row.id, content }),
     });
-    refresh();
-  }
+    await refresh();
+  }, [refresh]);
 
-  async function getAllFolders(): Promise<FolderRow[]> {
-    const data = await apiPost({ action: 'allFolders' });
-    return data.folders ?? [];
-  }
+  const getAllFolders = useCallback(async (): Promise<FolderRow[]> => {
+    const { data } = await apiPost({ action: 'allFolders' });
+    return data?.folders ?? [];
+  }, [apiPost]); // stable — doesn't depend on refresh
 
   return {
     folders,

@@ -14,7 +14,7 @@ import { toast } from 'sonner';
 import {
   Upload, FolderPlus, FilePlus, Search, Grid3x3, List, ChevronRight, Home,
   Download, Trash2, Pencil, Folder as FolderIcon, File as FileIcon, Image, Music, Video, FileCode,
-  ArrowLeft, MoreVertical, Move, X,
+  ArrowLeft, MoreVertical, Move, X, ExternalLink, Link2, Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { FilePreview } from '@/components/file-preview';
@@ -64,7 +64,7 @@ export default function FilesPage() {
 
   useEffect(() => {
     getAllFolders().then(setAllFolders);
-  }, [getAllFolders, refresh]);
+  }, [getAllFolders]);
 
   useEffect(() => {
     if (!parentId) { setCrumbs([]); return; }
@@ -161,6 +161,12 @@ export default function FilesPage() {
     setMoveFolderId(null);
   }
 
+  function copyLink(id: number) {
+    const link = `${window.location.origin}/dashboard/files/view/${id}`;
+    navigator.clipboard.writeText(link);
+    toast.success('Link copied to clipboard');
+  }
+
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -254,6 +260,8 @@ export default function FilesPage() {
                 onDelete={() => doDelete(item)}
                 onDownload={() => item.kind === 'file' && downloadFile(item)}
                 onMove={() => item.kind === 'file' && setMoveTarget(item)}
+                onOpenInTab={() => item.kind === 'file' && window.open(`/dashboard/files/view/${item.id}`, '_blank')}
+                onCopyLink={() => item.kind === 'file' && copyLink(item.id)}
               />
             ))}
           </div>
@@ -267,6 +275,8 @@ export default function FilesPage() {
                 onDelete={() => doDelete(item)}
                 onDownload={() => item.kind === 'file' && downloadFile(item)}
                 onMove={() => item.kind === 'file' && setMoveTarget(item)}
+                onOpenInTab={() => item.kind === 'file' && window.open(`/dashboard/files/view/${item.id}`, '_blank')}
+                onCopyLink={() => item.kind === 'file' && copyLink(item.id)}
               />
             ))}
           </div>
@@ -342,8 +352,9 @@ export default function FilesPage() {
 function ItemCard(props: {
   item: Item; selected: boolean; onSelect: (e: React.MouseEvent) => void; onOpen: () => void;
   onRename: () => void; onDelete: () => void; onDownload: () => void; onMove: () => void;
+  onOpenInTab: () => void; onCopyLink: () => void;
 }) {
-  const { item, selected, onSelect, onOpen, onRename, onDelete, onDownload, onMove } = props;
+  const { item, selected, onSelect, onOpen, onRename, onDelete, onDownload, onMove, onOpenInTab, onCopyLink } = props;
   const Icon = iconFor(item);
   return (
     <ContextMenu>
@@ -363,6 +374,8 @@ function ItemCard(props: {
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onClick={onOpen}>Open</ContextMenuItem>
+        {item.kind === 'file' && <ContextMenuItem onClick={onOpenInTab}><ExternalLink className="h-4 w-4 mr-2" /> Open in new tab</ContextMenuItem>}
+        {item.kind === 'file' && <ContextMenuItem onClick={onCopyLink}><Link2 className="h-4 w-4 mr-2" /> Copy link</ContextMenuItem>}
         {item.kind === 'file' && <ContextMenuItem onClick={onDownload}><Download className="h-4 w-4 mr-2" /> Download</ContextMenuItem>}
         {item.kind === 'file' && <ContextMenuItem onClick={onMove}><Move className="h-4 w-4 mr-2" /> Move</ContextMenuItem>}
         <ContextMenuItem onClick={onRename}><Pencil className="h-4 w-4 mr-2" /> Rename</ContextMenuItem>
@@ -375,8 +388,9 @@ function ItemCard(props: {
 function ItemRow(props: {
   item: Item; selected: boolean; onSelect: (e: React.MouseEvent) => void; onOpen: () => void;
   onRename: () => void; onDelete: () => void; onDownload: () => void; onMove: () => void;
+  onOpenInTab: () => void; onCopyLink: () => void;
 }) {
-  const { item, selected, onSelect, onOpen, onRename, onDelete, onDownload, onMove } = props;
+  const { item, selected, onSelect, onOpen, onRename, onDelete, onDownload, onMove, onOpenInTab, onCopyLink } = props;
   const Icon = iconFor(item);
   return (
     <ContextMenu>
